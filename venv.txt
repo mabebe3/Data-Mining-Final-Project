@@ -1,0 +1,18 @@
+Note: the text following run seperated by a space can be ctrl+c ctrl+v into terminal or cmd prompt
+
+
+---when you clone the repo---
+cd into root
+run venv\Scripts\activate 
+run pip install -r requirements.txt 
+
+---requirements are updated---
+cd into root
+run venv\Scripts\activate
+run pip freeze > current.txt
+run pip uninstall -y -r current.txt
+run pip install -r requirements.txt
+run rm current.txt
+
+---deactivate venv---
+run deactivate
