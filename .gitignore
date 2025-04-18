@@ -9,3 +9,5 @@ data/raw/stats.txt
 .json
 ignore
 helper/
+.env
+challenge_submissions/
