@@ -1,1 +1,9 @@
 venv/
+data
+data/raw/data
+data/raw/src
+data/raw/license.txt
+data/raw/md5sums
+data/raw/README.md
+data/raw/stats.txt
+.json

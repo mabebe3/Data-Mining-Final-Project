@@ -16,3 +16,7 @@ umap-learn
 yellowbrick
 statsmodels
 joblib
+pyspark
+torch
+tensorflow
+

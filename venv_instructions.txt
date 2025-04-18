@@ -21,3 +21,7 @@ run pip uninstall -y -r current.txt
 run pip install -r requirements.txt
 run rm current.txt
 
+
+---alt updated---
+cd into root
+run pip install --upgrade -r requirements.txt
