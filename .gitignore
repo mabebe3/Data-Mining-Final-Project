@@ -10,3 +10,4 @@ data/raw/stats.txt
 helper
 ignore/
 .env
+challenge_submissions/
