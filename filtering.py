@@ -5,13 +5,11 @@ from scipy.sparse.linalg import svds
 import faiss
 import time
 
-# Load data
 playlist_tracks_df = pd.read_csv('data/playlists_tracks.csv')
 playlists_df = pd.read_csv('data/playlists.csv')
 tracks_df = pd.read_csv('data/tracks.csv')
 artists_df = pd.read_csv('data/artists.csv')
 
-# Create mappings
 unique_playlists = playlist_tracks_df['playlist_id'].unique()
 unique_tracks = playlist_tracks_df['track_id'].unique()
 playlist_to_idx = {pid: i for i, pid in enumerate(unique_playlists)}
@@ -76,7 +74,7 @@ index_ivf = faiss.IndexIVFFlat(quantizer, dimension, nlist, faiss.METRIC_INNER_P
 index_ivf.train(normalized_vectors)
 index_ivf.add(normalized_vectors)
 # Number of clusters to explore during search (higher = more accurate but slower)
-index_ivf.nprobe = 10  
+index_ivf.nprobe = 20
 
 # Create track and playlist dataframes with metadata
 track_factors_df = pd.DataFrame(track_factors, columns=[f'factor_{i}' for i in range(k)])
@@ -100,7 +98,7 @@ def get_track_name(track_idx):
         return track_info['track_name'].values[0]
     return f"Unknown Track (ID: {track_id})"
 
-def get_co_occurrence_recommendations(track_idx, top_n=10):
+def get_co_occurrence_recommendations(track_idx, top_n=500):
     """Get recommendations based on track co-occurrences in playlists"""
     # Find all playlists containing this track
     playlists = track_to_playlists.get(track_idx, [])
@@ -120,7 +118,7 @@ def get_co_occurrence_recommendations(track_idx, top_n=10):
         return recommended_tracks
     return []
 
-def get_ann_recommendations(track_idx, top_n=10):
+def get_ann_recommendations(track_idx, top_n=500):
     """Get recommendations using FAISS ANN search"""
     query_vector = normalized_vectors[track_idx:track_idx+1]
     distances, indices = index_ivf.search(query_vector, top_n + 1)  # +1 because it will include the query itself
@@ -137,7 +135,7 @@ def get_ann_recommendations(track_idx, top_n=10):
     results = sorted(results, key=lambda x: x[1], reverse=True)[:top_n]
     return results
 
-def hybrid_recommendations(track_idx, alpha=0.5, top_n=10):
+def hybrid_recommendations(track_idx, alpha=0.5, top_n=500):
     """Combine ANN and co-occurrence recommendations with weighting factor alpha"""
     # Get ANN recommendations
     ann_start = time.time()
@@ -164,7 +162,7 @@ def hybrid_recommendations(track_idx, alpha=0.5, top_n=10):
     top_tracks = sorted(combined_scores.items(), key=lambda x: x[1], reverse=True)[:top_n]
     return [(idx, score) for idx, score in top_tracks]
 
-def recommend_tracks_for_playlist(playlist_idx, alpha=0.5, top_n=10):
+def recommend_tracks_for_playlist(playlist_idx, alpha=0.5, top_n=500):
     """Recommend tracks for a playlist using hybrid approach"""
     # Get current tracks in playlist
     current_tracks = set(playlist_to_tracks.get(playlist_idx, []))
@@ -220,18 +218,21 @@ if __name__ == "__main__":
     ann_recs = get_ann_recommendations(track_idx)
     for i, (idx, score) in enumerate(ann_recs):
         print(f"Rank {i+1}: {get_track_name(idx)} (Score: {score:.4f})")
+        if i > 10: break
     
     # Get pure co-occurrence recommendations
     print("\nPure Co-occurrence Recommendations:")
     co_recs = get_co_occurrence_recommendations(track_idx)
     for i, (idx, score) in enumerate(co_recs):
         print(f"Rank {i+1}: {get_track_name(idx)} (Score: {score:.4f})")
+        if i > 10: break
     
     # Get hybrid recommendations
     print("\nHybrid Recommendations (Alpha=0.7):")
     hybrid_recs = hybrid_recommendations(track_idx, alpha=0.7)
     for i, (idx, score) in enumerate(hybrid_recs):
         print(f"Rank {i+1}: {get_track_name(idx)} (Score: {score:.4f})")
+        if i > 10: break
     
     # Example playlist recommendation
     playlist_idx = 50  # Replace with a valid playlist index
