@@ -16,6 +16,8 @@ import os
 # challenge_playlist_tracks_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\online\\playlists_tracks.csv')
 # challenge_playlists_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\online\\playlists.csv')
 
+challenge_playlists_df = challenge_playlists_df[challenge_playlists_df['num_samples'] > 0]
+
 print(f"Training playlists: {len(playlists_df)}")
 print(f"Challenge playlists: {len(challenge_playlists_df)}")
 
