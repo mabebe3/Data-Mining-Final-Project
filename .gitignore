@@ -11,3 +11,6 @@ helper
 ignore/
 .env
 challenge_submissions/
+/challenge
+svd_song_name_vectors.npy
+svd_word_matrix_Vname.npy

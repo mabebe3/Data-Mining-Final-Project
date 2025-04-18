@@ -59,12 +59,12 @@ if __name__ == "__main__":
     song_matrix = np.load('svd_song_name_vectors.npy').astype(np.float32)   # Shape: (num_songs, latent_dim)
 
     num_playlists, input_features = rname_matrix.shape  # Get 2D dimensions
-    print(f"num_playlists: {num_playlists}")
+    print(f"num_playlists: {num_playlists} {input_features}")
     num_songs, latent_dim = song_matrix.shape
-    print(f"num_songs: {num_songs}")
+    print(f"num_songs: {song_matrix} {latent_dim}")
 
     # ==============================================
-    # Training Setup (FIXED model initialization)
+    # Training Setup
     # ==============================================
     model = PlaylistEmbeddingModel(input_features=input_features)
     optimizer = tf.keras.optimizers.Adam(0.001)
