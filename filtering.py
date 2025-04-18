@@ -16,6 +16,8 @@ artists_df = pd.read_csv('data/artists.csv')
 challenge_playlist_tracks_df = pd.read_csv('data/online/playlists_tracks.csv')
 challenge_playlists_df = pd.read_csv('data/online/playlists.csv')
 
+challenge_playlists_df = challenge_playlists_df[challenge_playlists_df['num_samples'] > 0]
+
 print(f"Training playlists: {len(playlists_df)}")
 print(f"Challenge playlists: {len(challenge_playlists_df)}")
 
