@@ -8,3 +8,4 @@ data/raw/README.md
 data/raw/stats.txt
 .json
 helper
+ignore/
