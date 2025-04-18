@@ -8,6 +8,6 @@ data/raw/README.md
 data/raw/stats.txt
 .json
 ignore/
-helper/
+helper
 .env
 challenge_submissions/
