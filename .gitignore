@@ -9,3 +9,4 @@ data/raw/stats.txt
 .json
 helper
 ignore/
+.env
