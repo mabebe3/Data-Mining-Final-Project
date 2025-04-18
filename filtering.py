@@ -5,16 +5,20 @@ from scipy.sparse.linalg import svds
 import faiss
 import time
 import os
-
+import glob
+from dotenv import load_dotenv
+load_dotenv()
 # # Load training data
-# playlist_tracks_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\data_formatted\\playlists_tracks.csv')
-# playlists_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\data_formatted\\playlists.csv')
-# tracks_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\data_formatted\\tracks.csv')
-# artists_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\data_formatted\\artists.csv')
+format_path = os.getenv("FORMATTED")
+playlist_tracks_df = pd.read_csv(os.path.join(format_path,"playlists_tracks.csv"))
+playlists_df = pd.read_csv(os.path.join(format_path,"playlists.csv"))
+tracks_df = pd.read_csv(os.path.join(format_path,"tracks.csv"))
+artists_df = pd.read_csv(os.path.join(format_path,"artists.csv"))
 
 # # Load challenge data
-# challenge_playlist_tracks_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\online\\playlists_tracks.csv')
-# challenge_playlists_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\online\\playlists.csv')
+challenge_path = os.getenv("ONLINE")
+challenge_playlist_tracks_df = pd.read_csv(os.path.join(challenge_path,"playlists_tracks.csv"))
+challenge_playlists_df = pd.read_csv(os.path.join(challenge_path,"playlists.csv"))
 
 challenge_playlists_df = challenge_playlists_df[challenge_playlists_df['num_samples'] > 0]
 

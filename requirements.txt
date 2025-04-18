@@ -21,3 +21,4 @@ torch
 tensorflow
 pyarrow
 faiss-cpu
+dotenv
