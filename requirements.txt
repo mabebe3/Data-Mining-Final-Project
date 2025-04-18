@@ -19,4 +19,5 @@ joblib
 pyspark
 torch
 tensorflow
-
+pyarrow
+faiss-cpu
