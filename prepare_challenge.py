@@ -4,10 +4,10 @@ from helper import inout as IO , inout
 import os
 
 # data folder
-SRC_FOLDER = 'data/online/'
-TARGET_FOLDER = 'data/online/'
+# SRC_FOLDER = 'C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\challenge\\'
+# TARGET_FOLDER = 'C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\online\\'
 
-FOLDER_DATA = 'data/'
+# FOLDER_DATA = 'C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\data_formatted\\'
 
 TEST_FILE = 'challenge_set.json'
 

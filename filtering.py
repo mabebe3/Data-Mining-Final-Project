@@ -6,15 +6,15 @@ import faiss
 import time
 import os
 
-# Load training data
-playlist_tracks_df = pd.read_csv('data/playlists_tracks.csv')
-playlists_df = pd.read_csv('data/playlists.csv')
-tracks_df = pd.read_csv('data/tracks.csv')
-artists_df = pd.read_csv('data/artists.csv')
+# # Load training data
+# playlist_tracks_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\data_formatted\\playlists_tracks.csv')
+# playlists_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\data_formatted\\playlists.csv')
+# tracks_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\data_formatted\\tracks.csv')
+# artists_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\data_formatted\\artists.csv')
 
-# Load challenge data
-challenge_playlist_tracks_df = pd.read_csv('data/online/playlists_tracks.csv')
-challenge_playlists_df = pd.read_csv('data/online/playlists.csv')
+# # Load challenge data
+# challenge_playlist_tracks_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\online\\playlists_tracks.csv')
+# challenge_playlists_df = pd.read_csv('C:\\Education\\Senior Spring\\CS 470\\Data-Mining-Final-Project\\data\\online\\playlists.csv')
 
 print(f"Training playlists: {len(playlists_df)}")
 print(f"Challenge playlists: {len(challenge_playlists_df)}")
