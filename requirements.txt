@@ -19,6 +19,8 @@ joblib
 pyspark
 torch
 tensorflow
+tqdm
+glob
 pyarrow
 faiss-cpu
 dotenv
