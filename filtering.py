@@ -7,7 +7,29 @@ import time
 import os
 import glob
 from dotenv import load_dotenv
+import tensorflow as tf
+from tensorflow.keras.layers import Input, Embedding, Lambda, Dense
+from tensorflow.keras.models import Model
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import keras
+from keras import ops
+
 load_dotenv()
+
+# Configure tensorflow for efficient resource usage
+
+import tensorflow as tf
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
+
+tf.config.threading.set_intra_op_parallelism_threads(10)
+tf.keras.mixed_precision.set_global_policy('mixed_float16')
+
 # # Load training data
 format_path = os.getenv("FORMATTED")
 playlist_tracks_df = pd.read_csv(os.path.join(format_path,"playlists_tracks.csv"))
@@ -202,7 +224,88 @@ def get_ann_recommendations(playlist_idx, top_n=500):
     results = sorted(results, key=lambda x: x[1], reverse=True)[:top_n]
     return results
 
-def hybrid_recommendations(playlist_idx, alpha=0.7, top_n=500):
+def train_autoencoder():
+    """Train an autoencoder on SVD latent features and return compatible embeddings"""
+    model_path = "latent_autoencoder.keras"
+    
+    # Use SVD latent features as our foundation
+    latent_dim = track_factors.shape[1]  # k=100 from SVD
+    num_tracks = len(unique_tracks)
+
+    if os.path.exists(model_path):
+        autoencoder = tf.keras.models.load_model(model_path, compile=False)
+        print("Loaded pre-trained latent autoencoder.")
+    else:
+        print("Training autoencoder on SVD latent features...")
+        tf.keras.backend.clear_session()
+
+        # Build autoencoder using SVD features as input
+        inputs = Input(shape=(latent_dim,))
+        encoded = Dense(64, activation='relu')(inputs)
+        decoded = Dense(latent_dim, activation='linear')(encoded)
+        
+        autoencoder = Model(inputs, decoded)
+        autoencoder.compile(optimizer='adam', loss='mse')
+        
+        # Train using SVD track factors as both input and target
+        autoencoder.fit(
+            x=track_factors,
+            y=track_factors,
+            epochs=15,
+            batch_size=256
+        )
+        autoencoder.save(model_path)
+        print("Autoencoder trained and saved.")
+
+    # Create enhanced embeddings for all tracks
+    encoder_input = autoencoder.input
+    encoder_output = autoencoder.layers[1].output
+    encoder = Model(encoder_input, encoder_output)
+
+    track_embeddings = encoder.predict(track_factors, batch_size=512)
+
+    # Normalize embeddings for cosine similarity
+    normalized = track_embeddings / np.linalg.norm(track_embeddings, axis=1, keepdims=True)
+    normalized = normalized.astype('float32')
+    dimension = normalized.shape[1]
+    
+    # Build FAISS index for autoencoder embeddings
+    nlist = min(100, len(normalized) // 39)
+    quantizer = faiss.IndexFlatIP(dimension)
+    index = faiss.IndexIVFFlat(quantizer, dimension, nlist, faiss.METRIC_INNER_PRODUCT)
+    index.train(normalized)
+    index.add(normalized)
+    index.nprobe = 20
+
+    return index, track_embeddings
+
+
+def get_autoencoder_recommendations(playlist_idx, track_embeddings, ae_index, top_n=500):
+    current_tracks = set(playlist_to_tracks.get(playlist_idx, []))
+    if not current_tracks:
+        return []
+    
+    # Get playlist embedding
+    track_indices = list(current_tracks)
+    avg_embedding = np.mean(track_embeddings[track_indices], axis=0)
+    avg_embedding = avg_embedding.reshape(1, -1).astype('float32')
+    norm = np.linalg.norm(avg_embedding)
+    if norm > 0:
+        avg_embedding /= norm
+    
+    # Search FAISS index
+    distances, indices = ae_index.search(avg_embedding, top_n + len(current_tracks))
+    
+    # Filter results
+    recommendations = []
+    for idx, dist in zip(indices[0], distances[0]):
+        if idx < len(idx_to_track) and idx not in current_tracks:
+            recommendations.append((idx, float(dist)))
+    
+    return sorted(recommendations, key=lambda x: x[1], reverse=True)[:top_n]
+
+
+def hybrid_recommendations(playlist_idx, model_weights, top_n=500):
     """Combine ANN and co-occurrence recommendations with weighting factor alpha"""
     current_tracks = set(playlist_to_tracks.get(playlist_idx, []))
     
@@ -213,17 +316,25 @@ def hybrid_recommendations(playlist_idx, alpha=0.7, top_n=500):
     # Get co-occurrence recommendations
     co_occur_recs = get_co_occurrence_recommendations(playlist_idx, top_n*2)
     co_occur_dict = {idx: score for idx, score in co_occur_recs}
+
+    # Get ae model and embeddings
+    ae_index, track_embeddings = train_autoencoder()
+
+    # Get auto-encoder recommendations
+    ae_recs = get_autoencoder_recommendations(playlist_idx, track_embeddings, ae_index, top_n*2)
+    ae_recs_dict = {idx: score for idx, score in ae_recs}
     
     # Combine scores
     combined_scores = {}
-    all_tracks = set(list(ann_recs_dict.keys()) + list(co_occur_dict.keys()))
+    all_tracks = set(list(ann_recs_dict.keys()) + list(co_occur_dict.keys())+ list(ae_recs_dict.keys()))
     
     for t in all_tracks:
         if t in current_tracks:
             continue
         ann_score = ann_recs_dict.get(t, 0)
         co_score = co_occur_dict.get(t, 0)
-        combined_scores[t] = alpha * ann_score + (1-alpha) * co_score
+        ae_score = ae_recs_dict.get(t, 0)
+        combined_scores[t] = model_weights[0] * ann_score + model_weights[1] * co_score + model_weights[2] * ae_score
     
     # Return top recommendations
     top_tracks = sorted(combined_scores.items(), key=lambda x: x[1], reverse=True)[:top_n]
@@ -250,7 +361,7 @@ def process_challenge_playlists(output_dir='challenge_submissions'):
         
         try:
             playlist_idx = playlist_to_idx[playlist_id]
-            recommendations = hybrid_recommendations(playlist_idx, alpha=0.7, top_n=500)
+            recommendations = hybrid_recommendations(playlist_idx, model_weights=[0.4, 0.2, 0.4], top_n=500)
             
             # Save recommendations for this playlist
             for track_id, score in recommendations:
@@ -278,7 +389,10 @@ def process_challenge_playlists(output_dir='challenge_submissions'):
     print(f"Saved submission file to {submission_file}")
     
     return results_df
-
 # Main execution
+"""
+python filtering.py
+cd documents/github/data-mining-final-project
+"""
 if __name__ == "__main__":
-    process_challenge_playlists()
+    process_challenge_playlists() 
