@@ -1,19 +1,22 @@
 import gzip
 
 # Read raw submission (assumes it's already formatted correctly)
+with open("formatted_submission.csv", "r", encoding="utf-8") as f:
+    lines = f.readlines()[1:]
+
 with open("submission_raw.csv", "r", encoding="utf-8") as f:
     raw_lines = f.readlines()
 
 # Read submission.csv, skip first row and first column in each row
-with open("submission.csv", "r", encoding="utf-8") as f:
-    lines = f.readlines()[1:]  # skip team_info line
+# with open("submission.csv", "r", encoding="utf-8") as f:
+    # lines = f.readlines()[1:]  # skip team_info line
 
 # Process lines: remove first column in each (label "pid")
 processed_lines = []
 for line in lines:
     parts = line.strip().split(',')
     if len(parts) > 1:
-        new_line = ','.join(parts[1:])  # drop 'pid'
+        new_line = ','.join(parts[:])  # drop 'pid'
         processed_lines.append(new_line + '\n')
 
 # Concatenate
