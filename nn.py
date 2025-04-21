@@ -1,129 +1,86 @@
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset, random_split
+import tensorflow as tf
+from tensorflow.keras import layers, Model
+import json
+import argparse
 
-# Define the neural network architecture
-class HighDimNet(nn.Module):
-    def __init__(self, input_dim, num_layers=3, hidden_units=512, 
-                 dropout_rate=0.3, activation=nn.ReLU):
+# ==============================================
+# Build 1D CNN Architecture (for 2D input matrix)
+# ==============================================
+class PlaylistEmbeddingModel(Model):
+    def __init__(self, input_features):
         super().__init__()
-        self.layers = nn.ModuleList()
-        
-        # Input layer
-        self.layers.append(nn.Linear(input_dim, hidden_units))
-        self.layers.append(activation())
-        self.layers.append(nn.BatchNorm1d(hidden_units))
-        self.layers.append(nn.Dropout(dropout_rate))
+        self.cnn = tf.keras.Sequential([
+            layers.Reshape((input_features, 1)),  # Explicitly add channel dimension
+            layers.Conv1D(32, 3, activation='relu'),
+            layers.MaxPooling1D(2),
+            layers.Conv1D(64, 3, activation='relu'),
+            layers.GlobalAveragePooling1D(),
+            layers.Dense(256, activation='relu'),
+            layers.Dense(latent_dim)  # Match song embedding dimension
+        ])
+    
+    def call(self, x):
+        return self.cnn(x)
 
-        # Hidden layers
-        for _ in range(num_layers - 2):
-            self.layers.append(nn.Linear(hidden_units, hidden_units))
-            self.layers.append(activation())
-            self.layers.append(nn.BatchNorm1d(hidden_units))
-            self.layers.append(nn.Dropout(dropout_rate))
+# Custom loss
+def cosine_similarity_loss(y_true, y_pred):
+    y_true = tf.math.l2_normalize(y_true, axis=1)
+    y_pred = tf.math.l2_normalize(y_pred, axis=1)
+    return -tf.reduce_mean(tf.reduce_sum(y_true * y_pred, axis=1))
 
-        # Output layer
-        self.output_layer = nn.Linear(hidden_units, 1)
-        
-    def forward(self, x):
-        for layer in self.layers:
-            x = layer(x)
-        return self.output_layer(x)
+# ==============================================
+# Recommendation Generation
+# ==============================================
+def generate_recommendations(playlist_matrix, k=500):
+    playlist_emb = tf.math.l2_normalize(model.predict(playlist_matrix), axis=1)
+    song_emb = tf.math.l2_normalize(song_matrix, axis=1)
+    similarity = tf.matmul(playlist_emb, song_emb, transpose_b=True)
+    return tf.math.top_k(similarity, k=k).indices.numpy()
 
-# Hyperparameters (set your desired values here)
-num_layers = 3
-hidden_units = 512
-dropout_rate = 0.3
-lr = 1e-4
-weight_decay = 0
-batch_size = 1024
-patience = 5
-max_epochs = 50
+# python nn.py mpd.slice.0-999.json 1
+if __name__ == "__main__":
+    # Parse arguments (unchanged)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('json_file', type=str)
+    parser.add_argument('playlist_index', type=int)
+    args = parser.parse_args()
 
-# Assuming you have your data in numpy arrays
-# X_train, y_train, X_test, y_test = ...
+    # Load JSON and validate index (unchanged)
+    with open(args.json_file, 'r') as f:
+        playlists = json.load(f)
+    if args.playlist_index < 0 or args.playlist_index >= len(playlists):
+        raise ValueError(f"Invalid playlist index: {args.playlist_index}")
 
-# Convert data to PyTorch tensors and create datasets
-X_train_tensor = torch.FloatTensor(X_train)
-y_train_tensor = torch.FloatTensor(y_train)
-X_test_tensor = torch.FloatTensor(X_test)
-y_test_tensor = torch.FloatTensor(y_test)
+    # ==============================================
+    # Load & Prepare Data (FIXED for 2D input)
+    # ==============================================
+    rname_matrix = np.load('svd_word_matrix_Vname.npy').astype(np.float32)  # Shape: (num_playlists, features)
+    song_matrix = np.load('svd_song_name_vectors.npy').astype(np.float32)   # Shape: (num_songs, latent_dim)
 
-# Create training and validation datasets
-train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-train_size = int(0.8 * len(train_dataset))
-val_size = len(train_dataset) - train_size
-train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
+    num_playlists, input_features = rname_matrix.shape  # Get 2D dimensions
+    print(f"num_playlists: {num_playlists} {input_features}")
+    num_songs, latent_dim = song_matrix.shape
+    print(f"num_songs: {song_matrix} {latent_dim}")
 
-# Create data loaders
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-test_loader = DataLoader(TensorDataset(X_test_tensor, y_test_tensor), batch_size=batch_size)
+    # ==============================================
+    # Training Setup
+    # ==============================================
+    model = PlaylistEmbeddingModel(input_features=input_features)
+    optimizer = tf.keras.optimizers.Adam(0.001)
 
-# Initialize model, optimizer, and loss function
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model = HighDimNet(X_train.shape[1], num_layers=num_layers, 
-                  hidden_units=hidden_units, dropout_rate=dropout_rate).to(device)
-optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-criterion = nn.MSELoss()
+    # Reshape input_data to (num_playlists, input_features, 1) for Conv1D
+    dataset = tf.data.Dataset.from_tensor_slices(
+        (rname_matrix, song_matrix[:num_playlists])  # Directly use 2D input
+    ).shuffle(1024).batch(32).prefetch(2)
 
-# Training loop with early stopping
-best_val_loss = float('inf')
-epochs_no_improve = 0
+    model.compile(optimizer=optimizer, loss=cosine_similarity_loss)
+    history = model.fit(dataset, epochs=20, callbacks=[
+        tf.keras.callbacks.ReduceLROnPlateau(patience=2),
+        tf.keras.callbacks.EarlyStopping(patience=5)
+    ])
 
-for epoch in range(max_epochs):
-    # Training phase
-    model.train()
-    train_loss = 0.0
-    for X_batch, y_batch in train_loader:
-        X_batch, y_batch = X_batch.to(device), y_batch.to(device)
-        optimizer.zero_grad()
-        outputs = model(X_batch)
-        loss = criterion(outputs, y_batch.view(-1, 1))
-        loss.backward()
-        optimizer.step()
-        train_loss += loss.item() * X_batch.size(0)
-    train_loss /= len(train_loader.dataset)
-
-    # Validation phase
-    model.eval()
-    val_loss = 0.0
-    with torch.no_grad():
-        for X_val, y_val in val_loader:
-            X_val, y_val = X_val.to(device), y_val.to(device)
-            outputs = model(X_val)
-            loss = criterion(outputs, y_val.view(-1, 1))
-            val_loss += loss.item() * X_val.size(0)
-    val_loss /= len(val_loader.dataset)
-
-    print(f'Epoch {epoch+1}/{max_epochs}')
-    print(f'Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}')
-
-    # Early stopping check
-    if val_loss < best_val_loss:
-        best_val_loss = val_loss
-        epochs_no_improve = 0
-        torch.save(model.state_dict(), 'best_model.pth')
-    else:
-        epochs_no_improve += 1
-        if epochs_no_improve >= patience:
-            print(f'Early stopping after {epoch+1} epochs')
-            break
-
-# Load best model for testing
-model.load_state_dict(torch.load('best_model.pth'))
-
-# Test evaluation
-model.eval()
-test_loss = 0.0
-with torch.no_grad():
-    for X_test, y_test in test_loader:
-        X_test, y_test = X_test.to(device), y_test.to(device)
-        outputs = model(X_test)
-        loss = criterion(outputs, y_test.view(-1, 1))
-        test_loss += loss.item() * X_test.size(0)
-test_loss /= len(test_loader.dataset)
-
-print(f'Final Test Loss: {test_loss:.4f}')
+    # Generate recommendations (add batch dimension)
+    selected_playlist = rname_matrix[args.playlist_index][np.newaxis, :]  # Shape: (1, features)
+    recommendations = generate_recommendations(selected_playlist)
+    print(f"Top 500 songs for playlist {args.playlist_index}: {recommendations[0]}")

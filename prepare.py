@@ -2,9 +2,14 @@ import pandas as pd
 import os
 import json
 from helper import inout
+import os
+from dotenv import load_dotenv
+load_dotenv()
+# data folder
+src = os.getenv("DATA")
 
 # data folder
-SRC_FOLDER = 'data/original/data'
+SRC_FOLDER = src
 '''
 make sure you have your data structured in the dir above, where data is all the json files
 '''
