@@ -365,7 +365,16 @@ def process_challenge_playlists(output_dir='challenge_submissions'):
         try:
             playlist_idx = playlist_to_idx[playlist_id]
             recommendations = hybrid_recommendations(playlist_idx, [0.4, 0.2, 0.4], 500, ae_index, track_embeddings)
-            
+            if len(recommendations) < 500:
+                print(f"⚠️ Playlist {playlist_id} got only {len(recommendations)} recommendations!")
+                print(f" - Existing tracks: {len(playlist_to_tracks.get(playlist_to_idx[playlist_id], []))}")
+                
+                ann_recs = get_ann_recommendations(playlist_to_idx[playlist_id], top_n=1000)
+                co_recs = get_co_occurrence_recommendations(playlist_to_idx[playlist_id], top_n=1000)
+                print(f" - ANN candidates (pre-filter): {len(ann_recs)}")
+                print(f" - Co-occurrence candidates (pre-filter): {len(co_recs)}")
+                print(f" - Combined unique candidates: {len(set([r[0] for r in ann_recs] + [r[0] for r in co_recs]))}")
+
             # Save recommendations for this playlist
             for track_id, score in recommendations:
                 results.append({
@@ -389,8 +398,17 @@ def process_challenge_playlists(output_dir='challenge_submissions'):
     submission_df = results_df[['playlist_id', 'track_id']]
     submission_file = os.path.join(output_dir, 'challenge_submission.csv')
     submission_df.to_csv(submission_file, index=False)
-    print(f"Saved submission file to {submission_file}")
     
+    print(f"Saved submission file to {submission_file}")
+    # Verify that each playlist_id appears exactly 500 times in the submission
+    submission_counts = submission_df['playlist_id'].value_counts()
+    invalid_submission = submission_counts[submission_counts != 500]
+
+    if not invalid_submission.empty:
+        raise ValueError(f"The following playlist IDs do not have exactly 500 recommendations:\n{invalid_submission}")
+    else:
+        print("✅ Each playlist in the submission has exactly 500 recommendations.")
+
     return results_df
 # Main execution
 """

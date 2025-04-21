@@ -7,8 +7,8 @@ data/raw/md5sums
 data/raw/README.md
 data/raw/stats.txt
 .json
-helper
 ignore/
+helper
 .env
 challenge_submissions/
 /challenge
