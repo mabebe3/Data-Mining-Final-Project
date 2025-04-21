@@ -262,7 +262,7 @@ def train_autoencoder():
     encoder_output = autoencoder.layers[1].output
     encoder = Model(encoder_input, encoder_output)
 
-    track_embeddings = encoder.predict(track_factors, batch_size=512)
+    track_embeddings = encoder.predict(track_factors, batch_size=4096)
 
     # Normalize embeddings for cosine similarity
     normalized = track_embeddings / np.linalg.norm(track_embeddings, axis=1, keepdims=True)
@@ -305,7 +305,7 @@ def get_autoencoder_recommendations(playlist_idx, track_embeddings, ae_index, to
     return sorted(recommendations, key=lambda x: x[1], reverse=True)[:top_n]
 
 
-def hybrid_recommendations(playlist_idx, model_weights, top_n=500):
+def hybrid_recommendations(playlist_idx, model_weights, top_n, ae_index, track_embeddings):
     """Combine ANN and co-occurrence recommendations with weighting factor alpha"""
     current_tracks = set(playlist_to_tracks.get(playlist_idx, []))
     
@@ -316,9 +316,6 @@ def hybrid_recommendations(playlist_idx, model_weights, top_n=500):
     # Get co-occurrence recommendations
     co_occur_recs = get_co_occurrence_recommendations(playlist_idx, top_n*2)
     co_occur_dict = {idx: score for idx, score in co_occur_recs}
-
-    # Get ae model and embeddings
-    ae_index, track_embeddings = train_autoencoder()
 
     # Get auto-encoder recommendations
     ae_recs = get_autoencoder_recommendations(playlist_idx, track_embeddings, ae_index, top_n*2)
@@ -349,7 +346,12 @@ def process_challenge_playlists(output_dir='challenge_submissions'):
     valid_playlists = challenge_playlists_df[challenge_playlists_df['num_samples'] > 0]
     results = []
     
-    print(f"Processing {len(valid_playlists)} challenge playlists...")
+    total = len(valid_playlists)
+    print(f"Processing {total} challenge playlists...")
+    progress = 0
+
+    # Get ae model and embeddings
+    ae_index, track_embeddings = train_autoencoder()
     
     for index, row in valid_playlists.iterrows():
         playlist_id = row['playlist_id']
@@ -357,11 +359,12 @@ def process_challenge_playlists(output_dir='challenge_submissions'):
         num_tracks = row['num_tracks']
         num_samples = row['num_samples']
         
-        print(f"Processing playlist: {name} (ID: {playlist_id}, Tracks: {num_tracks}, Samples: {num_samples})")
+        progress = progress + 1
+        print(f"Processing playlist: {name}, {progress}/{total} (ID: {playlist_id}, Tracks: {num_tracks}, Samples: {num_samples})")
         
         try:
             playlist_idx = playlist_to_idx[playlist_id]
-            recommendations = hybrid_recommendations(playlist_idx, model_weights=[0.4, 0.2, 0.4], top_n=500)
+            recommendations = hybrid_recommendations(playlist_idx, [0.4, 0.2, 0.4], 500, ae_index, track_embeddings)
             
             # Save recommendations for this playlist
             for track_id, score in recommendations:
